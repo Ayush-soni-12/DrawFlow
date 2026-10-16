@@ -28,6 +28,7 @@ import { DualPaneLayout } from './components/DualPaneLayout';
 import { WhiteboardViewer } from './components/WhiteboardViewer';
 import { CustomNodeCard } from './components/CustomNodeCard';
 import { NodeInspectorDrawer } from './components/NodeInspectorDrawer';
+import { StatusBar } from './components/StatusBar';
 import { Plus, Check, Info, X } from 'lucide-react';
 
 interface PresetItem {
@@ -68,6 +69,7 @@ export default function App() {
   const [activeWorkflow, setActiveWorkflow] = useState<N8nWorkflow | null>(null);
   const [previewImageUrl, setPreviewImageUrl] = useState<string | undefined>(undefined);
   const [statusMessage, setStatusMessage] = useState<string>('');
+  const [analysisSource, setAnalysisSource] = useState<string>('');
   const [copied, setCopied] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -182,6 +184,9 @@ export default function App() {
             setActiveWorkflow(data.workflow);
           }
           syncToCanvas(data.graph.nodes, data.graph.edges);
+          if (data.source) {
+            setAnalysisSource(data.source);
+          }
           if (data.message) {
             setStatusMessage(data.message);
           }
@@ -510,6 +515,15 @@ export default function App() {
       />
 
       <DualPaneLayout leftPane={leftPaneContent} rightPane={rightPaneContent} />
+
+      <StatusBar
+        nodeCount={graphNodes.length}
+        edgeCount={graphEdges.length}
+        warnings={warningCount}
+        hints={infoCount}
+        analysisSource={analysisSource}
+        statusMessage={statusMessage}
+      />
     </div>
   );
 }
