@@ -1,434 +1,497 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, ChangeEvent } from 'react';
+import {
+  ReactFlow,
+  Background,
+  Controls,
+  Node,
+  Edge,
+  useNodesState,
+  useEdgesState,
+  BackgroundVariant
+} from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
 
-interface ServerStatus {
-  status: string;
-  service: string;
-  geminiConfigured: boolean;
-  timestamp: string;
+import {
+  GraphNode,
+  GraphEdge,
+  GapRecommendation,
+  N8nWorkflow,
+  calculateTopologicalLayout,
+  auditWorkflowGaps,
+  applyGapRecommendation,
+  compileToN8nWorkflow,
+  stringifyWorkflow
+} from '@drawflow/shared';
+
+import { TopBar } from './components/TopBar';
+import { DualPaneLayout } from './components/DualPaneLayout';
+import { WhiteboardViewer } from './components/WhiteboardViewer';
+import { CustomNodeCard } from './components/CustomNodeCard';
+import { NodeInspectorDrawer } from './components/NodeInspectorDrawer';
+import { Plus, Check, Info, X } from 'lucide-react';
+
+interface PresetItem {
+  id: string;
+  name: string;
+  description: string;
+  nodeCount: number;
 }
 
 export default function App() {
-  const [serverStatus, setServerStatus] = useState<ServerStatus | null>(null);
+  const [presets, setPresets] = useState<PresetItem[]>([
+    {
+      id: 'order-pipeline',
+      name: 'E-Commerce Order Pipeline',
+      description: 'Webhook -> PostgreSQL -> Slack',
+      nodeCount: 3
+    },
+    {
+      id: 'lead-enrichment',
+      name: 'Lead Capture & CRM Sync',
+      description: 'Form Trigger -> Airtable -> Gmail',
+      nodeCount: 3
+    },
+    {
+      id: 'devops-alerts',
+      name: 'DevOps Alert Router',
+      description: 'Schedule Trigger -> HTTP Health Check -> Discord Bot Alert',
+      nodeCount: 3
+    }
+  ]);
+  const [selectedPreset, setSelectedPreset] = useState('order-pipeline');
+  const [graphNodes, setGraphNodes] = useState<GraphNode[]>([]);
+  const [graphEdges, setGraphEdges] = useState<GraphEdge[]>([]);
+  const [recommendations, setRecommendations] = useState<GapRecommendation[]>([]);
+  const [dismissedRecIds, setDismissedRecIds] = useState<Set<string>>(new Set());
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [activeWorkflow, setActiveWorkflow] = useState<N8nWorkflow | null>(null);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | undefined>(undefined);
+  const [statusMessage, setStatusMessage] = useState<string>('');
   const [copied, setCopied] = useState(false);
-  const [activePreset, setActivePreset] = useState('order-pipeline');
+  const [isLoading, setIsLoading] = useState(false);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // React Flow state
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+
+  // Register custom node type
+  const nodeTypes = useMemo(
+    () => ({
+      custom: CustomNodeCard
+    }),
+    []
+  );
+
+  // Synchronize GraphNodes and GraphEdges to ReactFlow nodes and edges
+  const syncToCanvas = useCallback(
+    (gNodes: GraphNode[], gEdges: GraphEdge[]) => {
+      // 1. Calculate topological auto layout
+      const laidOut = calculateTopologicalLayout(gNodes, gEdges);
+
+      // 2. Map to React Flow Node objects
+      const rfNodes: Node[] = laidOut.map((n) => ({
+        id: n.id,
+        type: 'custom',
+        position: { x: n.position[0], y: n.position[1] },
+        data: { ...n },
+        selected: n.id === selectedNodeId
+      }));
+
+      // 3. Map to React Flow Edge objects
+      const rfEdges: Edge[] = gEdges.map((e) => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        sourceHandle: e.sourceIndex > 0 ? `pin-${e.sourceIndex}` : undefined,
+        style: { stroke: '#94a3b8', strokeWidth: 2 },
+        animated: false
+      }));
+
+      setNodes(rfNodes);
+      setEdges(rfEdges);
+
+      // 4. Audit architectural gaps
+      const gaps = auditWorkflowGaps(laidOut, gEdges);
+      setRecommendations(gaps);
+
+      // 5. Compile to valid n8n workflow
+      const compiled = compileToN8nWorkflow('DrawFlow Workflow', laidOut, gEdges);
+      setActiveWorkflow(compiled);
+    },
+    [setNodes, setEdges, selectedNodeId]
+  );
+
+  // Synchronize React Flow node selection when selectedNodeId changes
   useEffect(() => {
-    fetch('/api/health')
+    setNodes((prevNodes) =>
+      prevNodes.map((n) => ({
+        ...n,
+        selected: n.id === selectedNodeId
+      }))
+    );
+  }, [selectedNodeId, setNodes]);
+
+  // Selected node object for inspector drawer
+  const selectedNode = useMemo(() => {
+    return graphNodes.find((n) => n.id === selectedNodeId) || null;
+  }, [graphNodes, selectedNodeId]);
+
+  // Parameter update handler: updates graph state, re-layouts, and recompiles n8n clipboard export
+  const handleUpdateNode = useCallback(
+    (nodeId: string, patch: Partial<GraphNode>) => {
+      setGraphNodes((prevNodes) => {
+        const updated = prevNodes.map((n) => (n.id === nodeId ? { ...n, ...patch } : n));
+        syncToCanvas(updated, graphEdges);
+        return updated;
+      });
+    },
+    [graphEdges, syncToCanvas]
+  );
+
+  // Fetch presets list from backend
+  useEffect(() => {
+    fetch('/api/presets')
       .then((res) => res.json())
-      .then((data: ServerStatus) => setServerStatus(data))
-      .catch((err) => console.log('Backend starting up...', err));
+      .then((data: PresetItem[]) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setPresets(data);
+        }
+      })
+      .catch((err) => console.log('Presets fetch error, using local defaults:', err));
   }, []);
 
-  const handleCopy = () => {
-    // Copy sample n8n workflow JSON to clipboard
-    const sampleWorkflow = {
-      name: 'Shopify Order Processing Pipeline (DrawFlow)',
-      nodes: [
-        {
-          id: 'node-1',
-          name: 'Shopify Order Webhook',
-          type: 'n8n-nodes-base.webhook',
-          typeVersion: 1,
-          position: [240, 300],
-          parameters: { httpMethod: 'POST', path: 'shopify-order' }
-        },
-        {
-          id: 'suggested-formatter',
-          name: 'Format Order Payload',
-          type: 'n8n-nodes-base.set',
-          typeVersion: 2,
-          position: [480, 300],
-          parameters: { mode: 'manual', options: {} },
-          notesInFlow: true,
-          notes: 'Advised by DrawFlow: extracts clean customer and price values'
-        },
-        {
-          id: 'node-2',
-          name: 'PostgreSQL Customer Query',
-          type: 'n8n-nodes-base.postgres',
-          typeVersion: 1,
-          position: [720, 300],
-          parameters: {
-            operation: 'executeQuery',
-            query: 'SELECT * FROM customers WHERE email = $1'
-          }
-        },
-        {
-          id: 'node-3',
-          name: 'Send Slack Notification',
-          type: 'n8n-nodes-base.slack',
-          typeVersion: 1,
-          position: [960, 300],
-          parameters: { channel: '#orders', text: 'New order received from customer' }
-        }
-      ],
-      connections: {
-        'Shopify Order Webhook': {
-          main: [[{ node: 'Format Order Payload', type: 'main', index: 0 }]]
-        },
-        'Format Order Payload': {
-          main: [[{ node: 'PostgreSQL Customer Query', type: 'main', index: 0 }]]
-        },
-        'PostgreSQL Customer Query': {
-          main: [[{ node: 'Send Slack Notification', type: 'main', index: 0 }]]
-        }
-      }
-    };
+  // Request analysis from backend (by presetId or uploaded image)
+  const requestAnalysis = useCallback(
+    async (params: { presetId?: string; image?: string }) => {
+      setIsLoading(true);
+      try {
+        const res = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(params)
+        });
 
-    navigator.clipboard.writeText(JSON.stringify(sampleWorkflow, null, 2));
+        const data = await res.json();
+        if (data.success && data.graph) {
+          setGraphNodes(data.graph.nodes);
+          setGraphEdges(data.graph.edges);
+          if (data.workflow) {
+            setActiveWorkflow(data.workflow);
+          }
+          syncToCanvas(data.graph.nodes, data.graph.edges);
+          if (data.message) {
+            setStatusMessage(data.message);
+          }
+        }
+      } catch (err) {
+        console.error('Analysis request failed:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [syncToCanvas]
+  );
+
+  // Load initial preset
+  useEffect(() => {
+    requestAnalysis({ presetId: 'order-pipeline' });
+  }, [requestAnalysis]);
+
+  // Filter visible recommendations (excluding dismissed ones)
+  const visibleRecommendations = useMemo(() => {
+    return recommendations.filter((r) => !dismissedRecIds.has(r.id));
+  }, [recommendations, dismissedRecIds]);
+
+  const warningCount = useMemo(() => {
+    return visibleRecommendations.filter((r) => r.severity === 'warning').length;
+  }, [visibleRecommendations]);
+
+  const infoCount = useMemo(() => {
+    return visibleRecommendations.filter((r) => r.severity === 'info').length;
+  }, [visibleRecommendations]);
+
+  // Handle Preset Change
+  const handleSelectPreset = (presetId: string) => {
+    setSelectedPreset(presetId);
+    setPreviewImageUrl(undefined);
+    setDismissedRecIds(new Set());
+    setSelectedNodeId(null);
+    requestAnalysis({ presetId });
+  };
+
+  // Trigger file upload dialog
+  const handleUploadTrigger = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  // Handle direct custom image upload (from drag-and-drop or clipboard paste)
+  const handleUploadCustomImage = useCallback(
+    (dataUrl: string) => {
+      setPreviewImageUrl(dataUrl);
+      setSelectedPreset('custom-upload');
+      setDismissedRecIds(new Set());
+      setSelectedNodeId(null);
+      requestAnalysis({ image: dataUrl });
+    },
+    [requestAnalysis]
+  );
+
+  // Handle file upload
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64Url = event.target?.result as string;
+      handleUploadCustomImage(base64Url);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Handle Copy for n8n (Ctrl+V)
+  const handleCopyWorkflow = () => {
+    if (!activeWorkflow) return;
+    const jsonText = stringifyWorkflow(activeWorkflow);
+    navigator.clipboard.writeText(jsonText);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      {/* Top Navigation */}
-      <header className="app-header">
-        <div className="brand-group">
-          <div className="brand-logo">D</div>
-          <div>
-            <h1 className="brand-title">DrawFlow</h1>
-          </div>
-          <span className="badge-tag">Whiteboard to n8n</span>
-        </div>
+  // Dismiss a gap recommendation
+  const handleDismiss = useCallback((recId: string) => {
+    setDismissedRecIds((prev) => {
+      const next = new Set(prev);
+      next.add(recId);
+      return next;
+    });
+  }, []);
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+  // Reset all dismissed recommendations
+  const handleResetDismissed = useCallback(() => {
+    setDismissedRecIds(new Set());
+  }, []);
+
+  // Handle Auto Insert of recommended glue node
+  const handleAutoInsert = (recommendation: GapRecommendation) => {
+    const rewired = applyGapRecommendation(graphNodes, graphEdges, recommendation);
+    setGraphNodes(rewired.nodes);
+    setGraphEdges(rewired.edges);
+    syncToCanvas(rewired.nodes, rewired.edges);
+  };
+
+  // Left pane content
+  const leftPaneContent = (
+    <>
+      <div className="pane-header">
+        <span>Whiteboard Sketch</span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+          {graphNodes.length} nodes detected
+        </span>
+      </div>
+
+      <div className="pane-content">
+        <WhiteboardViewer
+          nodes={graphNodes}
+          previewUrl={previewImageUrl}
+          presetName={selectedPreset}
+          selectedNodeId={selectedNodeId}
+          onSelectNode={setSelectedNodeId}
+          onUploadImage={handleUploadCustomImage}
+          onTriggerUploadClick={handleUploadTrigger}
+        />
+
+        {statusMessage && (
           <div
             style={{
+              padding: '8px 12px',
+              backgroundColor: 'var(--surface-active)',
+              border: '1px solid var(--line)',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: 12,
+              color: 'var(--text-muted)',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
-              fontSize: '13px',
-              color: 'var(--text-secondary)'
+              gap: 8
             }}
           >
-            <span
-              style={{
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                background: serverStatus ? 'var(--accent-emerald)' : 'var(--accent-amber)'
-              }}
-            />
-            {serverStatus ? 'API Connected' : 'Connecting backend...'}
+            <Info size={14} style={{ flexShrink: 0, color: 'var(--accent)' }} />
+            <span>{statusMessage}</span>
           </div>
+        )}
 
-          <button
-            id="btn-copy-n8n"
-            className="btn btn-success"
-            onClick={handleCopy}
-            title="Copies valid n8n JSON. Switch to n8n canvas and press Ctrl+V"
-          >
-            {copied ? '✓ Copied to Clipboard!' : 'Copy for n8n (Ctrl+V)'}
-          </button>
-        </div>
-      </header>
-
-      {/* Main Split View */}
-      <main className="workspace-container">
-        {/* Left: Presets & Upload */}
-        <section className="sidebar-panel">
-          <div>
-            <h2
-              style={{
-                fontSize: '14px',
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                color: 'var(--text-muted)',
-                marginBottom: '12px',
-                letterSpacing: '0.05em'
-              }}
-            >
-              Whiteboard Presets
-            </h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div
-                id="preset-order"
-                className={`preset-card ${activePreset === 'order-pipeline' ? 'active' : ''}`}
-                onClick={() => setActivePreset('order-pipeline')}
-              >
-                <div className="preset-title">E-Commerce Order Pipeline</div>
-                <div className="preset-desc">
-                  Webhook &rarr; Database &rarr; Slack (Flags missing transformer)
-                </div>
-              </div>
-
-              <div
-                id="preset-leads"
-                className={`preset-card ${activePreset === 'lead-enrichment' ? 'active' : ''}`}
-                onClick={() => setActivePreset('lead-enrichment')}
-              >
-                <div className="preset-title">Lead Capture & Enrichment</div>
-                <div className="preset-desc">
-                  Form &rarr; API Lookup &rarr; CRM Sync (Flags rate limiting)
-                </div>
-              </div>
-
-              <div
-                id="preset-devops"
-                className={`preset-card ${activePreset === 'devops-alerts' ? 'active' : ''}`}
-                onClick={() => setActivePreset('devops-alerts')}
-              >
-                <div className="preset-title">DevOps CloudWatch Router</div>
-                <div className="preset-desc">
-                  SNS Trigger &rarr; PagerDuty &rarr; Discord (Flags error guard)
-                </div>
-              </div>
+        <div className="advice-section">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span className="section-label">Architecture Advice</span>
+              {dismissedRecIds.size > 0 && (
+                <button
+                  type="button"
+                  onClick={handleResetDismissed}
+                  className="btn-text-action"
+                  title="Restore dismissed recommendations"
+                >
+                  Reset ({dismissedRecIds.size})
+                </button>
+              )}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {warningCount > 0 && (
+                <span className="advice-count-pill warning">
+                  {warningCount} {warningCount === 1 ? 'warning' : 'warnings'}
+                </span>
+              )}
+              {infoCount > 0 && (
+                <span className="advice-count-pill info">
+                  {infoCount} {infoCount === 1 ? 'hint' : 'hints'}
+                </span>
+              )}
+              {visibleRecommendations.length === 0 && (
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--status-success)' }}>
+                  0 gaps
+                </span>
+              )}
             </div>
           </div>
 
-          <div>
-            <h2
-              style={{
-                fontSize: '14px',
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                color: 'var(--text-muted)',
-                marginBottom: '12px',
-                letterSpacing: '0.05em'
-              }}
-            >
-              Upload Custom Sketch
-            </h2>
-            <div
-              id="dropzone"
-              style={{
-                border: '2px dashed var(--border-subtle)',
-                borderRadius: 'var(--radius-md)',
-                padding: '24px 16px',
-                textAlign: 'center',
-                background: 'rgba(255, 255, 255, 0.02)',
-                cursor: 'pointer'
-              }}
-            >
-              <div style={{ fontSize: '24px', marginBottom: '8px' }}>📷</div>
-              <div style={{ fontSize: '13px', fontWeight: 500 }}>Drop whiteboard photo here</div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                PNG, JPG or WEBP up to 10MB
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Center: Canvas View */}
-        <section className="canvas-panel" style={{ padding: '24px', overflowY: 'auto' }}>
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '20px'
-            }}
-          >
-            <div>
-              <h2 style={{ fontSize: '16px', fontWeight: 600 }}>Workflow Topology</h2>
-              <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                3 detected nodes, 2 architectural gap recommendations
-              </p>
-            </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <span className="badge-tag">Autolayout Active</span>
-            </div>
-          </div>
-
-          {/* Workflow Sequence Preview */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '16px',
-              padding: '32px 16px',
-              background: 'var(--bg-surface)',
-              borderRadius: 'var(--radius-lg)',
-              border: '1px solid var(--border-subtle)',
-              overflowX: 'auto'
-            }}
-          >
-            {/* Node 1 */}
-            <div
-              style={{
-                minWidth: '180px',
-                padding: '16px',
-                background: 'var(--bg-surface-elevated)',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border-active)'
-              }}
-            >
-              <div
-                style={{
-                  fontSize: '11px',
-                  color: 'var(--accent-cyan)',
-                  fontWeight: 600,
-                  textTransform: 'uppercase'
-                }}
-              >
-                Trigger Node
-              </div>
-              <div style={{ fontSize: '14px', fontWeight: 600, marginTop: '4px' }}>
-                Shopify Webhook
-              </div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
-                POST /shopify-order
-              </div>
-            </div>
-
-            <div style={{ color: 'var(--text-muted)', fontSize: '18px' }}>&rarr;</div>
-
-            {/* Suggested Node (Pulsing Amber) */}
-            <div
-              style={{
-                minWidth: '200px',
-                padding: '16px',
-                background: 'rgba(245, 158, 11, 0.1)',
-                borderRadius: 'var(--radius-md)',
-                border: '1px dashed var(--accent-amber)',
-                boxShadow: '0 0 15px rgba(245, 158, 11, 0.2)'
-              }}
-            >
-              <div
-                style={{
-                  fontSize: '11px',
-                  color: 'var(--accent-amber)',
-                  fontWeight: 600,
-                  textTransform: 'uppercase'
-                }}
-              >
-                Suggested Glue Node
-              </div>
-              <div style={{ fontSize: '14px', fontWeight: 600, marginTop: '4px' }}>
-                Format Order Payload
-              </div>
-              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '6px' }}>
-                Edit Fields (Set)
-              </div>
-            </div>
-
-            <div style={{ color: 'var(--text-muted)', fontSize: '18px' }}>&rarr;</div>
-
-            {/* Node 2 */}
-            <div
-              style={{
-                minWidth: '180px',
-                padding: '16px',
-                background: 'var(--bg-surface-elevated)',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border-subtle)'
-              }}
-            >
-              <div
-                style={{
-                  fontSize: '11px',
-                  color: 'var(--accent-primary)',
-                  fontWeight: 600,
-                  textTransform: 'uppercase'
-                }}
-              >
-                Database Node
-              </div>
-              <div style={{ fontSize: '14px', fontWeight: 600, marginTop: '4px' }}>
-                PostgreSQL Query
-              </div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
-                Find customer by email
-              </div>
-            </div>
-
-            <div style={{ color: 'var(--text-muted)', fontSize: '18px' }}>&rarr;</div>
-
-            {/* Node 3 */}
-            <div
-              style={{
-                minWidth: '180px',
-                padding: '16px',
-                background: 'var(--bg-surface-elevated)',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border-subtle)'
-              }}
-            >
-              <div
-                style={{
-                  fontSize: '11px',
-                  color: 'var(--accent-emerald)',
-                  fontWeight: 600,
-                  textTransform: 'uppercase'
-                }}
-              >
-                Notification Node
-              </div>
-              <div style={{ fontSize: '14px', fontWeight: 600, marginTop: '4px' }}>Slack Alert</div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
-                Post to #orders
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Right: Architectural Gap Advisor */}
-        <aside className="advisor-panel">
-          <div>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: '8px'
-              }}
-            >
-              <h2
-                style={{
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  color: 'var(--text-muted)',
-                  letterSpacing: '0.05em'
-                }}
-              >
-                Architecture Advisor
-              </h2>
-              <span style={{ fontSize: '11px', color: 'var(--accent-emerald)', fontWeight: 600 }}>
-                2 Gaps Detected
+          {visibleRecommendations.length === 0 ? (
+            <div className="advice-empty-card">
+              <Check size={14} style={{ color: 'var(--status-success)', flexShrink: 0 }} />
+              <span>
+                {dismissedRecIds.size > 0
+                  ? 'All active recommendations resolved or dismissed!'
+                  : 'All glue nodes and data formatters verified!'}
               </span>
             </div>
-            <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-              DrawFlow detected omitted glue nodes between your whiteboard steps.
-            </p>
-          </div>
+          ) : (
+            visibleRecommendations.map((rec) => {
+              const isWarning = rec.severity === 'warning';
+              return (
+                <div
+                  key={rec.id}
+                  className={`advice-card ${isWarning ? 'advice-card-warning' : 'advice-card-info'}`}
+                >
+                  <div className="advice-header">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span className={`advice-tag ${isWarning ? 'tag-warning' : 'tag-info'}`}>
+                        {isWarning ? 'Warning' : 'Optimization'}
+                      </span>
+                      <span className="advice-title">{rec.title}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-dismiss"
+                      onClick={() => handleDismiss(rec.id)}
+                      aria-label={`Dismiss ${rec.title}`}
+                      title="Dismiss recommendation"
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
+                  <div className="advice-body">{rec.description}</div>
+                  {rec.reason && (
+                    <div className="advice-reason">
+                      <span className="reason-label">Why: </span>
+                      {rec.reason}
+                    </div>
+                  )}
+                  <div className="advice-footer">
+                    <button
+                      type="button"
+                      className="btn-insert"
+                      onClick={() => handleAutoInsert(rec)}
+                    >
+                      <Plus
+                        size={12}
+                        style={{ display: 'inline', verticalAlign: -1, marginRight: 4 }}
+                      />
+                      Auto-Insert {rec.suggestedNode.label}
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </>
+  );
 
-          {/* Advice 1 */}
-          <div className="advice-card">
-            <div className="advice-badge">⚠️ Missing Data Formatter</div>
-            <div className="advice-title">Direct Webhook to DB Connection</div>
-            <div className="advice-desc">
-              Shopify webhooks produce complex nested payloads. Inserting an Edit Fields node cleans
-              the parameters before the SQL execution.
-            </div>
-            <button
-              className="btn btn-secondary"
-              style={{ fontSize: '12px', padding: '6px 10px', marginTop: '4px' }}
-            >
-              ✓ Auto-Inserted in Export
-            </button>
-          </div>
+  // Right pane content
+  const rightPaneContent = (
+    <>
+      <div className="pane-header">
+        <span>Interactive n8n Canvas</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            Paste with Ctrl+V inside n8n
+          </span>
+        </div>
+      </div>
 
-          {/* Advice 2 */}
-          <div className="advice-card">
-            <div className="advice-badge" style={{ color: 'var(--accent-cyan)' }}>
-              💡 Missing Null Check
-            </div>
-            <div className="advice-title">Unhandled New Customer Path</div>
-            <div className="advice-desc">
-              If the customer is not found in PostgreSQL, downstream Slack messages may send empty
-              strings. Add an If condition.
-            </div>
-            <button
-              className="btn btn-secondary"
-              style={{ fontSize: '12px', padding: '6px 10px', marginTop: '4px' }}
-            >
-              + Add If Guard Node
-            </button>
-          </div>
-        </aside>
-      </main>
+      <div className="flow-container" style={{ position: 'relative' }}>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          nodeTypes={nodeTypes}
+          onNodeClick={(_, node) => setSelectedNodeId(node.id)}
+          onPaneClick={() => setSelectedNodeId(null)}
+          fitView
+          fitViewOptions={{ padding: 0.2 }}
+          minZoom={0.2}
+          maxZoom={1.5}
+          proOptions={{ hideAttribution: true }}
+        >
+          <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#334155" />
+          <Controls
+            style={{
+              backgroundColor: '#1e293b',
+              borderColor: '#334155',
+              borderRadius: 4,
+              boxShadow: 'none'
+            }}
+          />
+        </ReactFlow>
+
+        <NodeInspectorDrawer
+          node={selectedNode}
+          isOpen={selectedNodeId !== null}
+          onClose={() => setSelectedNodeId(null)}
+          onUpdateNode={handleUpdateNode}
+        />
+      </div>
+    </>
+  );
+
+  return (
+    <div className="app-container">
+      {/* Hidden file input for uploading custom sketches */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        accept="image/*"
+        style={{ display: 'none' }}
+      />
+
+      <TopBar
+        presets={presets}
+        selectedPreset={selectedPreset}
+        onSelectPreset={handleSelectPreset}
+        onUploadClick={handleUploadTrigger}
+        onCopyWorkflow={handleCopyWorkflow}
+        copied={copied}
+        isLoading={isLoading}
+        nodeCount={graphNodes.length}
+      />
+
+      <DualPaneLayout leftPane={leftPaneContent} rightPane={rightPaneContent} />
     </div>
   );
 }
