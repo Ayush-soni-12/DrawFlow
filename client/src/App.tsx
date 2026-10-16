@@ -263,6 +263,20 @@ export default function App() {
     setTimeout(() => setCopied(false), 2500);
   };
 
+  // Handle Download workflow as a .json file (for self-hosted n8n file import)
+  const handleDownloadWorkflow = () => {
+    if (!activeWorkflow) return;
+    const jsonText = stringifyWorkflow(activeWorkflow);
+    const blob = new Blob([jsonText], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const filename = `${(workflowName || 'drawflow-workflow').replace(/[^a-z0-9_-]/gi, '_').toLowerCase()}.json`;
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
   // Dismiss a gap recommendation
   const handleDismiss = useCallback((recId: string) => {
     setDismissedRecIds((prev) => {
@@ -487,6 +501,7 @@ export default function App() {
         onSelectPreset={handleSelectPreset}
         onUploadClick={handleUploadTrigger}
         onCopyWorkflow={handleCopyWorkflow}
+        onDownloadWorkflow={handleDownloadWorkflow}
         copied={copied}
         isLoading={isLoading}
         nodeCount={graphNodes.length}

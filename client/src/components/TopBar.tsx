@@ -1,5 +1,5 @@
 import { FC } from 'react';
-import { Copy, Check, Upload, RefreshCw } from 'lucide-react';
+import { Copy, Check, Upload, RefreshCw, Download } from 'lucide-react';
 
 interface TopBarProps {
   presets: Array<{ id: string; name: string }>;
@@ -7,6 +7,7 @@ interface TopBarProps {
   onSelectPreset: (id: string) => void;
   onUploadClick: () => void;
   onCopyWorkflow: () => void;
+  onDownloadWorkflow: () => void;
   copied: boolean;
   isLoading: boolean;
   nodeCount: number;
@@ -20,6 +21,7 @@ export const TopBar: FC<TopBarProps> = ({
   onSelectPreset,
   onUploadClick,
   onCopyWorkflow,
+  onDownloadWorkflow,
   copied,
   isLoading,
   nodeCount,
@@ -79,6 +81,18 @@ export const TopBar: FC<TopBarProps> = ({
         >
           <Upload size={15} />
           <span>Upload Sketch</span>
+        </button>
+
+        {/* Download compiled workflow as a .json file for import into self-hosted n8n */}
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={onDownloadWorkflow}
+          disabled={isLoading || nodeCount === 0}
+          title="Download workflow JSON file"
+        >
+          <Download size={15} />
+          <span>Download JSON</span>
         </button>
 
         <button
