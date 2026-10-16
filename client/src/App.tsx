@@ -36,6 +36,8 @@ interface PresetItem {
   name: string;
   description: string;
   nodeCount: number;
+  edgeCount?: number;
+  gapCount?: number;
 }
 
 export default function App() {
@@ -60,6 +62,7 @@ export default function App() {
     }
   ]);
   const [selectedPreset, setSelectedPreset] = useState('order-pipeline');
+  const [workflowName, setWorkflowName] = useState('DrawFlow Workflow');
   const [graphNodes, setGraphNodes] = useState<GraphNode[]>([]);
   const [graphEdges, setGraphEdges] = useState<GraphEdge[]>([]);
   const [recommendations, setRecommendations] = useState<GapRecommendation[]>([]);
@@ -68,7 +71,9 @@ export default function App() {
   const [activeWorkflow, setActiveWorkflow] = useState<N8nWorkflow | null>(null);
   const [previewImageUrl, setPreviewImageUrl] = useState<string | undefined>(undefined);
   const [statusMessage, setStatusMessage] = useState<string>('');
+  const [analysisSource, setAnalysisSource] = useState<string>('');
   const [copied, setCopied] = useState(false);
+  const [toastVisible, setToastVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
 
@@ -119,10 +124,10 @@ export default function App() {
       setRecommendations(gaps);
 
       // 5. Compile to valid n8n workflow
-      const compiled = compileToN8nWorkflow('DrawFlow Workflow', laidOut, gEdges);
+      const compiled = compileToN8nWorkflow(workflowName || 'DrawFlow Workflow', laidOut, gEdges);
       setActiveWorkflow(compiled);
     },
-    [setNodes, setEdges, selectedNodeId]
+    [setNodes, setEdges, selectedNodeId, workflowName]
   );
 
   // Synchronize React Flow node selection when selectedNodeId changes
@@ -183,6 +188,9 @@ export default function App() {
             setActiveWorkflow(data.workflow);
           }
           syncToCanvas(data.graph.nodes, data.graph.edges);
+          if (data.source) {
+            setAnalysisSource(data.source);
+          }
           if (data.message) {
             setStatusMessage(data.message);
           }
@@ -256,12 +264,42 @@ export default function App() {
   };
 
   // Handle Copy for n8n (Ctrl+V)
-  const handleCopyWorkflow = () => {
+  const handleCopyWorkflow = useCallback(() => {
     if (!activeWorkflow) return;
     const jsonText = stringifyWorkflow(activeWorkflow);
     navigator.clipboard.writeText(jsonText);
     setCopied(true);
+    setToastVisible(true);
     setTimeout(() => setCopied(false), 2500);
+    setTimeout(() => setToastVisible(false), 2500);
+  }, [activeWorkflow]);
+
+  // Global keyboard shortcut: Ctrl+Shift+C (Win/Linux) or Cmd+Shift+C (Mac) → copy workflow
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isMac = navigator.platform.toUpperCase().includes('MAC');
+      const modKey = isMac ? e.metaKey : e.ctrlKey;
+      if (modKey && e.shiftKey && e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        handleCopyWorkflow();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleCopyWorkflow]);
+
+  // Handle Download workflow as a .json file (for self-hosted n8n file import)
+  const handleDownloadWorkflow = () => {
+    if (!activeWorkflow) return;
+    const jsonText = stringifyWorkflow(activeWorkflow);
+    const blob = new Blob([jsonText], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const filename = `${(workflowName || 'drawflow-workflow').replace(/[^a-z0-9_-]/gi, '_').toLowerCase()}.json`;
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
   };
 
   // Handle direct JSON file download

@@ -218,12 +218,21 @@ app.get('/api/health', (_req: Request, res: Response) => {
 });
 
 app.get('/api/presets', (_req: Request, res: Response) => {
-  const presetsList = Object.entries(PRESETS_DATA).map(([id, data]) => ({
-    id,
-    name: data.name,
-    description: data.description,
-    nodeCount: data.nodes.length
-  }));
+  const presetsList = Object.entries(PRESETS_DATA).map(([id, data]) => {
+    // Pre-compute gap count for each preset so the client can display it
+    // without a full /api/analyze round-trip
+    const laidOut = calculateTopologicalLayout(data.nodes, data.edges);
+    const gapRecommendations = auditWorkflowGaps(laidOut, data.edges);
+
+    return {
+      id,
+      name: data.name,
+      description: data.description,
+      nodeCount: data.nodes.length,
+      edgeCount: data.edges.length,
+      gapCount: gapRecommendations.length
+    };
+  });
   res.json(presetsList);
 });
 
