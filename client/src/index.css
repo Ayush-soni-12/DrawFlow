@@ -120,6 +120,44 @@ a:focus-visible {
   gap: 12px;
 }
 
+/* Workflow name editor — center of the TopBar */
+.workflow-name-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 1;
+}
+
+.workflow-name-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+  letter-spacing: 0.03em;
+}
+
+.workflow-name-input {
+  height: 32px;
+  width: 220px;
+  background-color: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  transition: border-color 150ms ease;
+}
+
+.workflow-name-input:hover:not(:disabled) {
+  border-color: var(--line-light);
+}
+
+.workflow-name-input:disabled {
+  opacity: 0.5;
+}
+
 /* Buttons */
 .btn {
   display: inline-flex;

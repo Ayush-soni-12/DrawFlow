@@ -59,6 +59,7 @@ export default function App() {
     }
   ]);
   const [selectedPreset, setSelectedPreset] = useState('order-pipeline');
+  const [workflowName, setWorkflowName] = useState('DrawFlow Workflow');
   const [graphNodes, setGraphNodes] = useState<GraphNode[]>([]);
   const [graphEdges, setGraphEdges] = useState<GraphEdge[]>([]);
   const [recommendations, setRecommendations] = useState<GapRecommendation[]>([]);
@@ -117,10 +118,10 @@ export default function App() {
       setRecommendations(gaps);
 
       // 5. Compile to valid n8n workflow
-      const compiled = compileToN8nWorkflow('DrawFlow Workflow', laidOut, gEdges);
+      const compiled = compileToN8nWorkflow(workflowName || 'DrawFlow Workflow', laidOut, gEdges);
       setActiveWorkflow(compiled);
     },
-    [setNodes, setEdges, selectedNodeId]
+    [setNodes, setEdges, selectedNodeId, workflowName]
   );
 
   // Synchronize React Flow node selection when selectedNodeId changes
@@ -489,6 +490,8 @@ export default function App() {
         copied={copied}
         isLoading={isLoading}
         nodeCount={graphNodes.length}
+        workflowName={workflowName}
+        onWorkflowNameChange={setWorkflowName}
       />
 
       <DualPaneLayout leftPane={leftPaneContent} rightPane={rightPaneContent} />
