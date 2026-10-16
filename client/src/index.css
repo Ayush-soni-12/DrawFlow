@@ -554,6 +554,8 @@ a:focus-visible {
 }
 
 .node-category-pill {
+  display: inline-flex;
+  align-items: center;
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
@@ -590,15 +592,32 @@ a:focus-visible {
   font-family: monospace;
 }
 
-.node-suggested-badge {
+.node-badges-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
   margin-top: 4px;
+}
+
+.node-suggested-badge {
   font-size: 10px;
   font-weight: 500;
   color: var(--status-warning);
   background-color: var(--status-warning-bg);
   padding: 2px 4px;
   border-radius: 2px;
-  align-self: flex-start;
+}
+
+.node-params-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 500;
+  color: #38bdf8;
+  background-color: rgba(56, 189, 248, 0.1);
+  padding: 2px 4px;
+  border-radius: 2px;
 }
 
 /* Node Inspector Drawer */
