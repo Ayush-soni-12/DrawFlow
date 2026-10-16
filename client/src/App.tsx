@@ -28,8 +28,7 @@ import { DualPaneLayout } from './components/DualPaneLayout';
 import { WhiteboardViewer } from './components/WhiteboardViewer';
 import { CustomNodeCard } from './components/CustomNodeCard';
 import { NodeInspectorDrawer } from './components/NodeInspectorDrawer';
-import { StatusBar } from './components/StatusBar';
-import { ToastNotification } from './components/ToastNotification';
+import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { Plus, Check, Info, X } from 'lucide-react';
 
 interface PresetItem {
@@ -76,6 +75,7 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -302,6 +302,54 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
+  // Handle direct JSON file download
+  const handleDownloadWorkflow = () => {
+    if (!activeWorkflow) return;
+    const jsonText = stringifyWorkflow(activeWorkflow);
+    const blob = new Blob([jsonText], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `drawflow-${selectedPreset || 'workflow'}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setStatusMessage('Workflow JSON file downloaded successfully.');
+  };
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isInput =
+        activeEl instanceof HTMLInputElement ||
+        activeEl instanceof HTMLTextAreaElement ||
+        activeEl instanceof HTMLSelectElement;
+
+      if (e.key === '?' && !isInput) {
+        e.preventDefault();
+        setIsShortcutsOpen((prev) => !prev);
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'c' && !isInput) {
+        e.preventDefault();
+        handleCopyWorkflow();
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'd' && !isInput) {
+        e.preventDefault();
+        handleDownloadWorkflow();
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleCopyWorkflow, handleDownloadWorkflow]);
+
   // Dismiss a gap recommendation
   const handleDismiss = useCallback((recId: string) => {
     setDismissedRecIds((prev) => {
@@ -527,26 +575,20 @@ export default function App() {
         onUploadClick={handleUploadTrigger}
         onCopyWorkflow={handleCopyWorkflow}
         onDownloadWorkflow={handleDownloadWorkflow}
+        onOpenShortcuts={() => setIsShortcutsOpen(true)}
         copied={copied}
         isLoading={isLoading}
         nodeCount={graphNodes.length}
-        workflowName={workflowName}
-        onWorkflowNameChange={setWorkflowName}
+        edgeCount={graphEdges.length}
+        warningCount={warningCount}
       />
 
       <DualPaneLayout leftPane={leftPaneContent} rightPane={rightPaneContent} />
 
-      <StatusBar
-        nodeCount={graphNodes.length}
-        edgeCount={graphEdges.length}
-        warnings={warningCount}
-        hints={infoCount}
-        analysisSource={analysisSource}
-        statusMessage={statusMessage}
+      <KeyboardShortcutsModal
+        isOpen={isShortcutsOpen}
+        onClose={() => setIsShortcutsOpen(false)}
       />
-
-      {/* Toast for keyboard shortcut copy confirmation */}
-      <ToastNotification message="Workflow copied for n8n" isVisible={toastVisible} />
     </div>
   );
 }

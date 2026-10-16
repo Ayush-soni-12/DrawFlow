@@ -1,5 +1,5 @@
 import { FC } from 'react';
-import { Copy, Check, Upload, RefreshCw, Download } from 'lucide-react';
+import { Copy, Check, Upload, RefreshCw, Download, HelpCircle } from 'lucide-react';
 
 interface TopBarProps {
   presets: Array<{ id: string; name: string; nodeCount?: number; edgeCount?: number; gapCount?: number }>;
@@ -8,11 +8,12 @@ interface TopBarProps {
   onUploadClick: () => void;
   onCopyWorkflow: () => void;
   onDownloadWorkflow: () => void;
+  onOpenShortcuts?: () => void;
   copied: boolean;
   isLoading: boolean;
   nodeCount: number;
-  workflowName: string;
-  onWorkflowNameChange: (name: string) => void;
+  edgeCount: number;
+  warningCount: number;
 }
 
 export const TopBar: FC<TopBarProps> = ({
@@ -22,11 +23,12 @@ export const TopBar: FC<TopBarProps> = ({
   onUploadClick,
   onCopyWorkflow,
   onDownloadWorkflow,
+  onOpenShortcuts,
   copied,
   isLoading,
   nodeCount,
-  workflowName,
-  onWorkflowNameChange
+  edgeCount,
+  warningCount
 }) => {
   return (
     <header className="top-bar">
@@ -34,6 +36,19 @@ export const TopBar: FC<TopBarProps> = ({
         <div className="brand-mark">DF</div>
         <span className="brand-title">DrawFlow</span>
         <span className="brand-tag">Whiteboard to n8n Automation</span>
+        {nodeCount > 0 && (
+          <div className="workflow-metrics-pill" title="Workflow topology overview">
+            <span>{nodeCount} {nodeCount === 1 ? 'node' : 'nodes'}</span>
+            <span className="metrics-sep">/</span>
+            <span>{edgeCount} {edgeCount === 1 ? 'edge' : 'edges'}</span>
+            {warningCount > 0 && (
+              <>
+                <span className="metrics-sep">/</span>
+                <span className="metrics-warning">{warningCount} {warningCount === 1 ? 'warning' : 'warnings'}</span>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Editable workflow name — threads directly into the n8n JSON export */}
@@ -81,6 +96,18 @@ export const TopBar: FC<TopBarProps> = ({
           })}
         </select>
 
+        {onOpenShortcuts && (
+          <button
+            type="button"
+            className="btn btn-secondary btn-icon-only"
+            onClick={onOpenShortcuts}
+            title="Keyboard shortcuts (?)"
+            aria-label="View keyboard shortcuts"
+          >
+            <HelpCircle size={15} />
+          </button>
+        )}
+
         <button
           type="button"
           className="btn btn-secondary"
@@ -98,6 +125,17 @@ export const TopBar: FC<TopBarProps> = ({
           onClick={onDownloadWorkflow}
           disabled={isLoading || nodeCount === 0}
           title="Download workflow JSON file"
+        >
+          <Download size={15} />
+          <span>Download JSON</span>
+        </button>
+
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={onDownloadWorkflow}
+          disabled={isLoading || nodeCount === 0}
+          title="Download compiled workflow as JSON"
         >
           <Download size={15} />
           <span>Download JSON</span>

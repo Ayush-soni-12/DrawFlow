@@ -1,6 +1,16 @@
 import { FC, useEffect, useState, ChangeEvent, FormEvent } from 'react';
 import { GraphNode, NodeCategory } from '@drawflow/shared';
-import { X, Sliders, Plus, Trash2, CheckCircle2 } from 'lucide-react';
+import {
+  X,
+  Sliders,
+  Plus,
+  Trash2,
+  CheckCircle2,
+  Copy,
+  Check,
+  ExternalLink,
+  RotateCcw
+} from 'lucide-react';
 
 interface NodeInspectorDrawerProps {
   node: GraphNode | null;
@@ -27,6 +37,24 @@ export const NodeInspectorDrawer: FC<NodeInspectorDrawerProps> = ({
 }) => {
   const [newParamKey, setNewParamKey] = useState('');
   const [newParamVal, setNewParamVal] = useState('');
+  const [copiedType, setCopiedType] = useState(false);
+
+  const handleCopyN8nType = () => {
+    if (!node?.n8nType) return;
+    navigator.clipboard.writeText(node.n8nType);
+    setCopiedType(true);
+    setTimeout(() => setCopiedType(false), 2000);
+  };
+
+  const handleOpenN8nDocs = () => {
+    window.open('https://docs.n8n.io/integrations/', '_blank', 'noopener,noreferrer');
+  };
+
+  const handleClearAllParams = () => {
+    if (node) {
+      onUpdateNode(node.id, { parameters: {} });
+    }
+  };
 
   // Close on Escape key press
   useEffect(() => {
@@ -153,9 +181,37 @@ export const NodeInspectorDrawer: FC<NodeInspectorDrawerProps> = ({
 
         {/* Resolved n8n Type */}
         <div className="form-group">
-          <label htmlFor="node-n8ntype-input" className="form-label">
-            n8n Integration Type
-          </label>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <label htmlFor="node-n8ntype-input" className="form-label" style={{ marginBottom: 0 }}>
+              n8n Integration Type
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <button
+                type="button"
+                className="btn-tiny-action"
+                onClick={handleCopyN8nType}
+                title="Copy n8n type to clipboard"
+                aria-label="Copy n8n type"
+              >
+                {copiedType ? (
+                  <Check size={11} style={{ color: 'var(--status-success)' }} />
+                ) : (
+                  <Copy size={11} />
+                )}
+                <span>{copiedType ? 'Copied' : 'Copy'}</span>
+              </button>
+              <button
+                type="button"
+                className="btn-tiny-action"
+                onClick={handleOpenN8nDocs}
+                title="Open official n8n documentation"
+                aria-label="Open official n8n documentation"
+              >
+                <ExternalLink size={11} />
+                <span>Docs</span>
+              </button>
+            </div>
+          </div>
           <input
             id="node-n8ntype-input"
             type="text"
@@ -194,6 +250,17 @@ export const NodeInspectorDrawer: FC<NodeInspectorDrawerProps> = ({
             <label className="form-label" style={{ marginBottom: 0 }}>
               Node Parameters ({paramEntries.length})
             </label>
+            {paramEntries.length > 0 && (
+              <button
+                type="button"
+                className="btn-tiny-action"
+                onClick={handleClearAllParams}
+                title="Remove all parameters"
+              >
+                <RotateCcw size={10} />
+                <span>Clear All</span>
+              </button>
+            )}
           </div>
 
           <div className="param-list">

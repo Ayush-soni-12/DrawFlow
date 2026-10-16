@@ -1,6 +1,6 @@
 import { FC, useState, useEffect, useRef, DragEvent } from 'react';
 import { GraphNode } from '@drawflow/shared';
-import { Eye, EyeOff, Upload } from 'lucide-react';
+import { Eye, EyeOff, Upload, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 
 interface WhiteboardViewerProps {
   nodes: GraphNode[];
@@ -24,8 +24,21 @@ export const WhiteboardViewer: FC<WhiteboardViewerProps> = ({
   const [showBoxes, setShowBoxes] = useState(true);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
 
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleZoomIn = () => {
+    setZoomLevel((prev) => Math.min(Number((prev + 0.2).toFixed(1)), 2.0));
+  };
+
+  const handleZoomOut = () => {
+    setZoomLevel((prev) => Math.max(Number((prev - 0.2).toFixed(1)), 0.6));
+  };
+
+  const handleResetZoom = () => {
+    setZoomLevel(1);
+  };
 
   // Nodes with bounding box coordinates (scaled 0 to 1000)
   const boundedNodes = nodes.filter((n) => n.bounds);
@@ -110,6 +123,41 @@ export const WhiteboardViewer: FC<WhiteboardViewerProps> = ({
       >
         <span className="section-label">Source Drawing</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div className="zoom-controls-group">
+            <button
+              type="button"
+              className="btn-zoom"
+              onClick={handleZoomOut}
+              disabled={zoomLevel <= 0.6}
+              title="Zoom out"
+              aria-label="Zoom out whiteboard sketch"
+            >
+              <ZoomOut size={12} />
+            </button>
+            <span className="zoom-level-text">{Math.round(zoomLevel * 100)}%</span>
+            <button
+              type="button"
+              className="btn-zoom"
+              onClick={handleZoomIn}
+              disabled={zoomLevel >= 2.0}
+              title="Zoom in"
+              aria-label="Zoom in whiteboard sketch"
+            >
+              <ZoomIn size={12} />
+            </button>
+            {zoomLevel !== 1 && (
+              <button
+                type="button"
+                className="btn-zoom"
+                onClick={handleResetZoom}
+                title="Reset zoom to 100%"
+                aria-label="Reset zoom to 100%"
+              >
+                <RotateCcw size={11} />
+              </button>
+            )}
+          </div>
+
           {onTriggerUploadClick && (
             <button
               type="button"
@@ -146,6 +194,12 @@ export const WhiteboardViewer: FC<WhiteboardViewerProps> = ({
         onDrop={handleDrop}
         onClick={() => onSelectNode?.(null)}
       >
+        <div
+          className="whiteboard-canvas-scaler"
+          style={{
+            transform: `scale(${zoomLevel})`
+          }}
+        >
         {/* Drag Overlay Feedback */}
         {isDraggingOver && (
           <div className="dropzone-overlay">
@@ -254,10 +308,14 @@ export const WhiteboardViewer: FC<WhiteboardViewerProps> = ({
                 onMouseLeave={() => setHoveredNodeId(null)}
                 title={`Click to inspect ${node.label} (${node.category})`}
               >
-                <span className="bounding-box-label">{node.label}</span>
+                <span className="bounding-box-label">
+                  {node.label}
+                  <span className="bbox-conf"> {Math.round((node.confidence || 1) * 100)}%</span>
+                </span>
               </div>
             );
           })}
+        </div>
       </div>
 
       {/* Hint for drag-and-drop & clipboard paste */}
