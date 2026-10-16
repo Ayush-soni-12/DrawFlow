@@ -29,6 +29,7 @@ import { WhiteboardViewer } from './components/WhiteboardViewer';
 import { CustomNodeCard } from './components/CustomNodeCard';
 import { NodeInspectorDrawer } from './components/NodeInspectorDrawer';
 import { StatusBar } from './components/StatusBar';
+import { ToastNotification } from './components/ToastNotification';
 import { Plus, Check, Info, X } from 'lucide-react';
 
 interface PresetItem {
@@ -71,6 +72,7 @@ export default function App() {
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [analysisSource, setAnalysisSource] = useState<string>('');
   const [copied, setCopied] = useState(false);
+  const [toastVisible, setToastVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -260,13 +262,29 @@ export default function App() {
   };
 
   // Handle Copy for n8n (Ctrl+V)
-  const handleCopyWorkflow = () => {
+  const handleCopyWorkflow = useCallback(() => {
     if (!activeWorkflow) return;
     const jsonText = stringifyWorkflow(activeWorkflow);
     navigator.clipboard.writeText(jsonText);
     setCopied(true);
+    setToastVisible(true);
     setTimeout(() => setCopied(false), 2500);
-  };
+    setTimeout(() => setToastVisible(false), 2500);
+  }, [activeWorkflow]);
+
+  // Global keyboard shortcut: Ctrl+Shift+C (Win/Linux) or Cmd+Shift+C (Mac) → copy workflow
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isMac = navigator.platform.toUpperCase().includes('MAC');
+      const modKey = isMac ? e.metaKey : e.ctrlKey;
+      if (modKey && e.shiftKey && e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        handleCopyWorkflow();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleCopyWorkflow]);
 
   // Handle Download workflow as a .json file (for self-hosted n8n file import)
   const handleDownloadWorkflow = () => {
@@ -524,6 +542,9 @@ export default function App() {
         analysisSource={analysisSource}
         statusMessage={statusMessage}
       />
+
+      {/* Toast for keyboard shortcut copy confirmation */}
+      <ToastNotification message="Workflow copied for n8n" isVisible={toastVisible} />
     </div>
   );
 }
