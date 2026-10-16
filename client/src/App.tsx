@@ -37,6 +37,8 @@ interface PresetItem {
   name: string;
   description: string;
   nodeCount: number;
+  edgeCount?: number;
+  gapCount?: number;
 }
 
 export default function App() {

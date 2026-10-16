@@ -2,7 +2,7 @@ import { FC } from 'react';
 import { Copy, Check, Upload, RefreshCw, Download } from 'lucide-react';
 
 interface TopBarProps {
-  presets: Array<{ id: string; name: string }>;
+  presets: Array<{ id: string; name: string; nodeCount?: number; edgeCount?: number; gapCount?: number }>;
   selectedPreset: string;
   onSelectPreset: (id: string) => void;
   onUploadClick: () => void;
@@ -66,11 +66,19 @@ export const TopBar: FC<TopBarProps> = ({
           disabled={isLoading}
           aria-label="Preset diagram"
         >
-          {presets.map((preset) => (
-            <option key={preset.id} value={preset.id}>
-              {preset.name}
-            </option>
-          ))}
+          {presets.map((preset) => {
+            // Build a richer label using edgeCount + gapCount from the server when present
+            const meta: string[] = [];
+            if (preset.nodeCount != null) meta.push(`${preset.nodeCount}n`);
+            if (preset.edgeCount != null) meta.push(`${preset.edgeCount}e`);
+            if (preset.gapCount != null) meta.push(`${preset.gapCount} gaps`);
+            const suffix = meta.length ? ` (${meta.join(' · ')})` : '';
+            return (
+              <option key={preset.id} value={preset.id}>
+                {preset.name}{suffix}
+              </option>
+            );
+          })}
         </select>
 
         <button
