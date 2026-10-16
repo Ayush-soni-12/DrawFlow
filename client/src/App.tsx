@@ -262,6 +262,22 @@ export default function App() {
     setTimeout(() => setCopied(false), 2500);
   };
 
+  // Handle direct JSON file download
+  const handleDownloadWorkflow = () => {
+    if (!activeWorkflow) return;
+    const jsonText = stringifyWorkflow(activeWorkflow);
+    const blob = new Blob([jsonText], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `drawflow-${selectedPreset || 'workflow'}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setStatusMessage('Workflow JSON file downloaded successfully.');
+  };
+
   // Dismiss a gap recommendation
   const handleDismiss = useCallback((recId: string) => {
     setDismissedRecIds((prev) => {
@@ -486,9 +502,12 @@ export default function App() {
         onSelectPreset={handleSelectPreset}
         onUploadClick={handleUploadTrigger}
         onCopyWorkflow={handleCopyWorkflow}
+        onDownloadWorkflow={handleDownloadWorkflow}
         copied={copied}
         isLoading={isLoading}
         nodeCount={graphNodes.length}
+        edgeCount={graphEdges.length}
+        warningCount={warningCount}
       />
 
       <DualPaneLayout leftPane={leftPaneContent} rightPane={rightPaneContent} />

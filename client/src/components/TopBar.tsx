@@ -1,5 +1,5 @@
 import { FC } from 'react';
-import { Copy, Check, Upload, RefreshCw } from 'lucide-react';
+import { Copy, Check, Upload, RefreshCw, Download } from 'lucide-react';
 
 interface TopBarProps {
   presets: Array<{ id: string; name: string }>;
@@ -7,9 +7,12 @@ interface TopBarProps {
   onSelectPreset: (id: string) => void;
   onUploadClick: () => void;
   onCopyWorkflow: () => void;
+  onDownloadWorkflow: () => void;
   copied: boolean;
   isLoading: boolean;
   nodeCount: number;
+  edgeCount: number;
+  warningCount: number;
 }
 
 export const TopBar: FC<TopBarProps> = ({
@@ -18,9 +21,12 @@ export const TopBar: FC<TopBarProps> = ({
   onSelectPreset,
   onUploadClick,
   onCopyWorkflow,
+  onDownloadWorkflow,
   copied,
   isLoading,
-  nodeCount
+  nodeCount,
+  edgeCount,
+  warningCount
 }) => {
   return (
     <header className="top-bar">
@@ -28,6 +34,19 @@ export const TopBar: FC<TopBarProps> = ({
         <div className="brand-mark">DF</div>
         <span className="brand-title">DrawFlow</span>
         <span className="brand-tag">Whiteboard to n8n Automation</span>
+        {nodeCount > 0 && (
+          <div className="workflow-metrics-pill" title="Workflow topology overview">
+            <span>{nodeCount} {nodeCount === 1 ? 'node' : 'nodes'}</span>
+            <span className="metrics-sep">/</span>
+            <span>{edgeCount} {edgeCount === 1 ? 'edge' : 'edges'}</span>
+            {warningCount > 0 && (
+              <>
+                <span className="metrics-sep">/</span>
+                <span className="metrics-warning">{warningCount} {warningCount === 1 ? 'warning' : 'warnings'}</span>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="controls-section">
@@ -57,6 +76,17 @@ export const TopBar: FC<TopBarProps> = ({
         >
           <Upload size={15} />
           <span>Upload Sketch</span>
+        </button>
+
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={onDownloadWorkflow}
+          disabled={isLoading || nodeCount === 0}
+          title="Download compiled workflow as JSON"
+        >
+          <Download size={15} />
+          <span>Download JSON</span>
         </button>
 
         <button
