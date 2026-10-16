@@ -120,6 +120,44 @@ a:focus-visible {
   gap: 12px;
 }
 
+/* Workflow name editor — center of the TopBar */
+.workflow-name-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 1;
+}
+
+.workflow-name-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+  letter-spacing: 0.03em;
+}
+
+.workflow-name-input {
+  height: 32px;
+  width: 220px;
+  background-color: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  transition: border-color 150ms ease;
+}
+
+.workflow-name-input:hover:not(:disabled) {
+  border-color: var(--line-light);
+}
+
+.workflow-name-input:disabled {
+  opacity: 0.5;
+}
+
 /* Buttons */
 .btn {
   display: inline-flex;
@@ -188,7 +226,7 @@ a:focus-visible {
 .dual-pane {
   display: flex;
   flex: 1;
-  height: calc(100vh - 56px);
+  height: calc(100vh - 56px - 28px); /* topbar 56px + statusbar 28px */
   overflow: hidden;
 }
 
@@ -800,5 +838,125 @@ a:focus-visible {
   .node-inspector-drawer {
     width: 100%;
     max-width: 100%;
+  }
+}
+
+/* ─── Status Bar ─── */
+.status-bar {
+  height: 28px;
+  background-color: var(--surface);
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  flex-shrink: 0;
+  gap: 16px;
+  z-index: 10;
+}
+
+.status-bar-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.status-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.status-stat-warning {
+  color: var(--status-warning);
+}
+
+.status-stat-success {
+  color: var(--status-success);
+}
+
+.status-stat-muted {
+  color: #64748b;
+}
+
+.status-divider {
+  width: 1px;
+  height: 12px;
+  background-color: var(--line);
+}
+
+.status-message {
+  font-size: 11px;
+  color: var(--text-muted);
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-source-pill {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background-color: rgba(249, 115, 22, 0.12);
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+
+/* ─── Toast Notification ─── */
+.toast-notification {
+  position: fixed;
+  bottom: 48px; /* sits above the status bar */
+  right: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px;
+  background-color: var(--surface-elevated);
+  border: 1px solid var(--line-light);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--status-success);
+  z-index: 100;
+  pointer-events: none;
+  animation: toastIn 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.toast-hidden {
+  animation: toastOut 200ms ease forwards;
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes toastOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* Honour reduced-motion: skip animation entirely */
+@media (prefers-reduced-motion: reduce) {
+  .toast-notification,
+  .toast-hidden {
+    animation: none;
   }
 }
