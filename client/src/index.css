@@ -260,6 +260,50 @@ a:focus-visible {
 }
 
 /* Whiteboard Viewer Container */
+.zoom-controls-group {
+  display: inline-flex;
+  align-items: center;
+  background-color: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  height: 26px;
+  padding: 0 4px;
+  gap: 2px;
+}
+
+.btn-zoom {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.btn-zoom:hover:not(:disabled) {
+  background-color: var(--surface-active);
+  color: var(--text);
+}
+
+.btn-zoom:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.zoom-level-text {
+  font-size: 10px;
+  font-family: monospace;
+  color: var(--text-muted);
+  padding: 0 4px;
+  min-width: 30px;
+  text-align: center;
+}
+
 .whiteboard-frame {
   position: relative;
   background-color: #0b1120;
@@ -272,11 +316,24 @@ a:focus-visible {
   min-height: 240px;
 }
 
+.whiteboard-canvas-scaler {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transform-origin: top center;
+  transition: transform 150ms ease;
+}
+
 .whiteboard-image {
   width: 100%;
   height: auto;
   display: block;
   object-fit: contain;
+}
+
+.bbox-conf {
+  opacity: 0.8;
+  font-weight: 400;
 }
 
 /* Spatial Bounding Box Overlay */
