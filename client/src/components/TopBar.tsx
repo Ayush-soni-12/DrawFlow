@@ -1,5 +1,5 @@
 import { FC } from 'react';
-import { Copy, Check, Upload, RefreshCw, Download } from 'lucide-react';
+import { Copy, Check, Upload, RefreshCw, Download, HelpCircle } from 'lucide-react';
 
 interface TopBarProps {
   presets: Array<{ id: string; name: string }>;
@@ -8,6 +8,7 @@ interface TopBarProps {
   onUploadClick: () => void;
   onCopyWorkflow: () => void;
   onDownloadWorkflow: () => void;
+  onOpenShortcuts?: () => void;
   copied: boolean;
   isLoading: boolean;
   nodeCount: number;
@@ -22,6 +23,7 @@ export const TopBar: FC<TopBarProps> = ({
   onUploadClick,
   onCopyWorkflow,
   onDownloadWorkflow,
+  onOpenShortcuts,
   copied,
   isLoading,
   nodeCount,
@@ -67,6 +69,18 @@ export const TopBar: FC<TopBarProps> = ({
             </option>
           ))}
         </select>
+
+        {onOpenShortcuts && (
+          <button
+            type="button"
+            className="btn btn-secondary btn-icon-only"
+            onClick={onOpenShortcuts}
+            title="Keyboard shortcuts (?)"
+            aria-label="View keyboard shortcuts"
+          >
+            <HelpCircle size={15} />
+          </button>
+        )}
 
         <button
           type="button"

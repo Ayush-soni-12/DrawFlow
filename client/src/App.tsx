@@ -28,6 +28,7 @@ import { DualPaneLayout } from './components/DualPaneLayout';
 import { WhiteboardViewer } from './components/WhiteboardViewer';
 import { CustomNodeCard } from './components/CustomNodeCard';
 import { NodeInspectorDrawer } from './components/NodeInspectorDrawer';
+import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { Plus, Check, Info, X } from 'lucide-react';
 
 interface PresetItem {
@@ -69,6 +70,7 @@ export default function App() {
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [copied, setCopied] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -277,6 +279,38 @@ export default function App() {
     URL.revokeObjectURL(url);
     setStatusMessage('Workflow JSON file downloaded successfully.');
   };
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isInput =
+        activeEl instanceof HTMLInputElement ||
+        activeEl instanceof HTMLTextAreaElement ||
+        activeEl instanceof HTMLSelectElement;
+
+      if (e.key === '?' && !isInput) {
+        e.preventDefault();
+        setIsShortcutsOpen((prev) => !prev);
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'c' && !isInput) {
+        e.preventDefault();
+        handleCopyWorkflow();
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'd' && !isInput) {
+        e.preventDefault();
+        handleDownloadWorkflow();
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleCopyWorkflow, handleDownloadWorkflow]);
 
   // Dismiss a gap recommendation
   const handleDismiss = useCallback((recId: string) => {
@@ -503,6 +537,7 @@ export default function App() {
         onUploadClick={handleUploadTrigger}
         onCopyWorkflow={handleCopyWorkflow}
         onDownloadWorkflow={handleDownloadWorkflow}
+        onOpenShortcuts={() => setIsShortcutsOpen(true)}
         copied={copied}
         isLoading={isLoading}
         nodeCount={graphNodes.length}
@@ -511,6 +546,11 @@ export default function App() {
       />
 
       <DualPaneLayout leftPane={leftPaneContent} rightPane={rightPaneContent} />
+
+      <KeyboardShortcutsModal
+        isOpen={isShortcutsOpen}
+        onClose={() => setIsShortcutsOpen(false)}
+      />
     </div>
   );
 }
